@@ -1,0 +1,68 @@
+# Default values for Enterprise MLOps Helm Chart
+# This is a YAML-formatted file.
+
+replicaCount: 2
+
+image:
+  repository: mlopsacrregistry.azurecr.io/mlops-api
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: "mlops-sa"
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: mlops.enterprise.com
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1024Mi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Application specific configuration
+env:
+  - name: APP_ENV
+    value: "production"
+  - name: MLFLOW_TRACKING_URI
+    value: "http://mlflow-server:5000"
+  - name: FEATURE_STORE_PROVIDER
+    value: "azure"
