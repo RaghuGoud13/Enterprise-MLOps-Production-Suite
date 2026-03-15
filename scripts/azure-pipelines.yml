@@ -1,0 +1,118 @@
+# Azure DevOps CI/CD Pipeline for Enterprise MLOps Lifecycle Engine
+# This pipeline automates the Build, Test, and Deploy phases.
+
+trigger:
+  - main
+  - develop
+
+variables:
+  - name: ACR_NAME
+    value: 'mlopsacrregistry'
+  - name: IMAGE_NAME
+    value: 'mlops-api'
+  - name: AKS_CLUSTER_NAME
+    value: 'mlops-production-aks'
+  - name: RESOURCE_GROUP
+    value: 'mlops-enterprise-rg'
+
+stages:
+- stage: Build
+  displayName: 'Build & Push Docker Image'
+  jobs:
+  - job: BuildAndPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: Docker@2
+      displayName: 'Login to ACR'
+      inputs:
+        command: 'login'
+        containerRegistry: 'AzureMLOpsConnection' # Pre-configured Service Connection
+    
+    - task: Docker@2
+      displayName: 'Build and Push'
+      inputs:
+        command: 'buildAndPush'
+        repository: $(IMAGE_NAME)
+        dockerfile: 'infrastructure/Dockerfile'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+- stage: Test
+  displayName: 'Unit & Integration Testing'
+  dependsOn: Build
+  jobs:
+  - job: RunTests
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.9'
+        addToPath: true
+
+    - script: |
+        pip install -r requirements.txt
+        pytest tests/ --doctest-modules --junitxml=junit/test-results.xml
+      displayName: 'Run Pytest'
+
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/test-*.xml'
+        testRunTitle: 'MLOps Engine Tests'
+
+- stage: Deploy_Dev
+  displayName: 'Deploy to Development'
+  dependsOn: Test
+  jobs:
+  - deployment: DeployDev
+    environment: 'development'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: HelmDeploy@0
+            displayName: 'Deploy via Helm'
+            inputs:
+              connectionType: 'Azure Resource Manager'
+              azureSubscription: 'Azure-MLOps-Service-Connection'
+              azureResourceGroup: $(RESOURCE_GROUP)
+              kubernetesCluster: $(AKS_CLUSTER_NAME)
+              command: 'upgrade'
+              chartType: 'FilePath'
+              chartPath: 'infrastructure/helm/chart'
+              releaseName: 'mlops-engine-dev'
+              valuesFile: 'infrastructure/helm/chart/values.yaml'
+              arguments: '--set image.tag=$(Build.BuildId)'
+
+- stage: Deploy_Prod
+  displayName: 'Deploy to Production'
+  dependsOn: Deploy_Dev
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployProd
+    environment: 'production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: HelmDeploy@0
+            displayName: 'Deploy via Helm'
+            inputs:
+              connectionType: 'Azure Resource Manager'
+              azureSubscription: 'Azure-MLOps-Service-Connection'
+              azureResourceGroup: $(RESOURCE_GROUP)
+              kubernetesCluster: $(AKS_CLUSTER_NAME)
+              command: 'upgrade'
+              chartType: 'FilePath'
+              chartPath: 'infrastructure/helm/chart'
+              releaseName: 'mlops-engine-prod'
+              valuesFile: 'infrastructure/helm/chart/values.yaml'
+              arguments: '--set image.tag=$(Build.BuildId)'
