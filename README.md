@@ -1,87 +1,72 @@
-# Enterprise MLOps Production Suite
+# Enterprise MLOps Production Suite: Robust Lifecycle Engine
 
-A professional, production-ready MLOps framework for end-to-end model development, validation, and serving. This repository implements a modular scikit-learn training pipeline and a FastAPI-based inference service, designed for high-availability Kubernetes deployments.
+An enterprise-grade MLOps engine designed for high-scale, production-ready machine learning workflows. This repository provides a unified framework for feature management, automated training, experiment tracking, and robust monitoring.
 
-## 🚀 Key Features
+## 🚀 Technical Architecture
 
-- **Modular Training Pipeline**: Built with clean abstractions, structured logging, and automated validation thresholds.
-- **Model Versioning**: Automated artifact versioning and "latest" tagging for seamless deployment.
-- **Production Inference API**: FastAPI service with Prometheus monitoring, structured JSON logging, and Kubernetes health probes.
-- **Infrastructure as Code**: Multi-stage optimized Docker builds and K8s manifests for HPA-enabled deployments.
-- **Robust CI/CD Support**: Designed for Azure DevOps, GitHub Actions, or GitLab CI/CD integration.
-
-## 🏗️ Project Structure
-
-```text
-.
-├── artifacts/             # Local model storage (git-ignored)
-├── data/                  # Local datasets (git-ignored)
-├── infrastructure/        # DevOps & Deployment configs
-│   ├── Dockerfile         # Multi-stage optimized build
-│   └── k8s-deployment.yml # Kubernetes manifest (HPA, Probes)
-├── src/
-│   ├── api/               # FastAPI Inference service
-│   └── training/          # Training pipeline & validation logic
-├── tests/                 # Pytest suite for training/API
-├── requirements.txt       # Production dependencies
-└── .gitignore             # Standard Python/ML gitignore
+```mermaid
+graph TD
+    A[Feature Store: Hopsworks/Azure] -->|Offline| B[Training Orchestrator]
+    A -->|Online| C[API Serving Layer]
+    B -->|MLflow Tracking| D[Model Registry]
+    D -->|Promotion| C
+    C -->|Request Logs| E[Monitoring Service]
+    E -->|Drift Detection| F[Alerting/Retraining Trigger]
+    F -->|Re-trigger| B
+    subgraph Infrastructure
+    G[AKS Cluster]
+    H[ACR Registry]
+    I[Terraform/Helm]
+    end
 ```
 
-## 🛠️ Usage
+## ✨ Key Features
 
-### 1. Training the Model
-To execute the E2E training lifecycle, run:
+- **Drift Detection:** Advanced statistical tests (KS-test, PSI) and Evidently AI integration for data/model drift monitoring.
+- **Feature Store Interface:** Modular connectivity to Hopsworks and Azure ML Feature Store.
+- **Training Orchestrator:** Seamless experiment tracking with MLflow and automated model promotion to Production.
+- **Infrastructure-as-Code (IaC):** Ready-to-use Terraform scripts for AKS/ACR and professional Helm charts for K8s deployment.
+- **CI/CD Excellence:** Detailed Azure DevOps pipelines for multi-stage (Dev/Prod) deployments.
+
+## 📈 MLOps Maturity Model
+
+This repository is designed to move your organization from **Level 0 (Manual Process)** to **Level 2 (Automated CI/CD and Monitoring)**:
+
+- **Level 0:** Manual script execution (Not supported).
+- **Level 1:** Automated training pipelines and experiment tracking (Supported by `src/training/orchestrator.py`).
+- **Level 2:** CI/CD for ML models and robust production monitoring (Supported by `scripts/azure-pipelines.yml` and `src/monitoring/drift_detector.py`).
+
+## 🛠️ Production Deployment Guide
+
+### 1. Provision Infrastructure
+Navigate to `infrastructure/terraform` and execute:
 ```bash
-export ARTIFACT_DIR=artifacts
-python src/training/pipeline.py
-```
-This will:
-- Load and split the Iris dataset.
-- Train a Random Forest classifier.
-- Validate the model (fails if accuracy < 0.90).
-- Save versioned and `latest` model artifacts.
-
-### 2. Running the Inference Service
-Once a model artifact is available:
-```bash
-uvicorn src.api.app:app --host 0.0.0.0 --port 8000
-```
-- **Inference**: POST to `/predict` with `{"features": [5.1, 3.5, 1.4, 0.2]}`.
-- **Metrics**: GET `/metrics` for Prometheus data.
-- **Health**: GET `/health/live` and `/health/ready`.
-
-### 3. Testing
-Run the comprehensive test suite:
-```bash
-pytest tests/
+terraform init
+terraform plan
+terraform apply
 ```
 
-## ☸️ Kubernetes Deployment
+### 2. Configure Helm Chart
+Update `infrastructure/helm/chart/values.yaml` with your ACR details and environment variables.
 
-Deploy the model service to a Kubernetes cluster (e.g., AKS):
-```bash
-kubectl apply -f infrastructure/k8s-deployment.yml
-```
-Features included in the manifest:
-- **Rolling Updates**: Zero-downtime deployments.
-- **HPA**: Horizontal Pod Autoscaling (3-10 replicas based on CPU).
-- **Liveness/Readiness Probes**: Automated self-healing.
-- **Prometheus Scraping**: Metrics automatically collected by Prometheus.
+### 3. CI/CD Pipeline Setup
+1. Import `scripts/azure-pipelines.yml` into your Azure DevOps project.
+2. Configure **Service Connections** for:
+   - Azure Resource Manager (`Azure-MLOps-Service-Connection`)
+   - Azure Container Registry (`AzureMLOpsConnection`)
+3. Run the pipeline to build, test, and deploy to AKS.
 
-## 🔄 CI/CD Strategy (Azure DevOps Style)
+## 💻 Core Components
 
-The project is structured to support a 3-stage pipeline:
-1. **CI Pipeline (Build)**:
-   - Run `pytest` on code changes.
-   - Execute `src/training/pipeline.py` to generate artifacts.
-   - Build and push Docker image to Azure Container Registry (ACR).
-2. **Release Pipeline (Staging)**:
-   - Deploy image to AKS Staging namespace.
-   - Run integration tests against the live endpoint.
-3. **Release Pipeline (Production)**:
-   - Manual approval gate.
-   - Deploy to AKS Production namespace with blue/green or canary strategy.
+- **`src/monitoring/drift_detector.py`**: Implementation of KS-tests and Population Stability Index.
+- **`src/feature_store/interface.py`**: Unified interface for external feature stores.
+- **`src/training/orchestrator.py`**: MLflow-driven training and registry management.
+
+## 📋 Requirements
+- Python 3.9+
+- MLflow
+- scipy, evidently, azure-ai-ml
+- Azure Subscription (for AKS/ACR)
 
 ---
-**Author**: Senior MLOps Research Engineer
-**License**: MIT
+*Maintained by Senior Research Engineering Team.*
